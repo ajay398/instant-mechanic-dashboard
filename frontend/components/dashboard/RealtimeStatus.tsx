@@ -1,5 +1,3 @@
-// frontend/components/dashboard/RealtimeStatus.tsx
-
 "use client";
 
 import { useEffect, useState } from "react";
@@ -10,18 +8,43 @@ import {
 } from "lucide-react";
 
 export default function RealtimeStatus() {
-  const [connected, setConnected] =
-    useState(false);
+  const [connected, setConnected] = useState(false);
 
-  const [lastUpdate, setLastUpdate] =
-    useState<string | null>(null);
+  const [lastUpdate, setLastUpdate] = useState<string | null>(
+    null
+  );
 
   useEffect(() => {
-    const socket = new WebSocket(
-      "ws://127.0.0.1:8000/ws/bookings"
-    );
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+
+    if (!apiUrl) {
+      console.error(
+        "NEXT_PUBLIC_API_URL is not configured"
+      );
+      return;
+    }
+
+    // Convert:
+    // https://example.com
+    // to:
+    // wss://example.com
+    //
+    // Convert:
+    // http://127.0.0.1:8000
+    // to:
+    // ws://127.0.0.1:8000
+
+    const wsUrl =
+      apiUrl.replace(/^http/, "ws") +
+      "/ws/bookings";
+
+    console.log("Connecting WebSocket:", wsUrl);
+
+    const socket = new WebSocket(wsUrl);
 
     socket.onopen = () => {
+      console.log("WebSocket connected");
+
       setConnected(true);
     };
 
@@ -59,10 +82,17 @@ export default function RealtimeStatus() {
     };
 
     socket.onclose = () => {
+      console.log("WebSocket disconnected");
+
       setConnected(false);
     };
 
-    socket.onerror = () => {
+    socket.onerror = (error) => {
+      console.error(
+        "WebSocket error:",
+        error
+      );
+
       setConnected(false);
     };
 
