@@ -1,13 +1,11 @@
-# backend/app/models/booking.py
-
 from datetime import datetime
 
 from sqlalchemy import (
     Column,
     DateTime,
+    Float,
     ForeignKey,
     Integer,
-    Numeric,
     String,
     Text,
 )
@@ -27,7 +25,7 @@ class Booking(Base):
     )
 
     booking_number = Column(
-        String(50),
+        String(30),
         unique=True,
         nullable=False,
         index=True,
@@ -37,42 +35,47 @@ class Booking(Base):
         Integer,
         ForeignKey("customers.id"),
         nullable=False,
+        index=True,
     )
 
     vehicle_id = Column(
         Integer,
         ForeignKey("vehicles.id"),
         nullable=False,
+        index=True,
     )
 
     mechanic_id = Column(
         Integer,
         ForeignKey("mechanics.id"),
         nullable=True,
+        index=True,
     )
 
     service_id = Column(
         Integer,
         ForeignKey("services.id"),
         nullable=False,
+        index=True,
     )
 
     status = Column(
-        String(30),
+        String(40),
         nullable=False,
         default="PENDING",
         index=True,
     )
 
     amount = Column(
-        Numeric(10, 2),
+        Float,
         nullable=False,
         default=0,
     )
 
     scheduled_at = Column(
         DateTime,
-        nullable=True,
+        nullable=False,
+        index=True,
     )
 
     completed_at = Column(
