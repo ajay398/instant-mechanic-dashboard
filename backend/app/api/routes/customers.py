@@ -17,7 +17,70 @@ def get_customers(
     search: str | None = Query(None),
     db: Session = Depends(get_db),
 ):
-    query = db.query(Customer)
+    # ---------------------------------------------------------
+    # Calculate booking statistics for all customers in one
+    # aggregated database query.
+    #
+    # This replaces the previous N+1 query pattern where
+    # two additional queries were executed for every customer.
+    # ---------------------------------------------------------
+
+    booking_stats = (
+        db.query(
+            Booking.customer_id.label("customer_id"),
+
+            func.count(
+                Booking.id
+            ).label("booking_count"),
+
+            func.coalesce(
+                func.sum(
+                    Booking.amount
+                ).filter(
+                    Booking.status == "COMPLETED"
+                ),
+                0,
+            ).label("total_spent"),
+        )
+        .group_by(
+            Booking.customer_id
+        )
+        .subquery()
+    )
+
+    # ---------------------------------------------------------
+    # Main customer query
+    # ---------------------------------------------------------
+
+    query = (
+        db.query(
+            Customer.id,
+            Customer.name,
+            Customer.email,
+            Customer.phone,
+            Customer.city,
+            Customer.created_at,
+
+            func.coalesce(
+                booking_stats.c.booking_count,
+                0,
+            ).label("booking_count"),
+
+            func.coalesce(
+                booking_stats.c.total_spent,
+                0,
+            ).label("total_spent"),
+        )
+        .outerjoin(
+            booking_stats,
+            booking_stats.c.customer_id
+            == Customer.id,
+        )
+    )
+
+    # ---------------------------------------------------------
+    # Optional customer search
+    # ---------------------------------------------------------
 
     if search:
         search_value = f"%{search}%"
@@ -28,26 +91,25 @@ def get_customers(
             | (Customer.phone.ilike(search_value))
         )
 
-    customers = query.order_by(
-        Customer.created_at.desc()
-    ).all()
+    # ---------------------------------------------------------
+    # Execute query
+    # ---------------------------------------------------------
+
+    customers = (
+        query
+        .order_by(
+            Customer.created_at.desc()
+        )
+        .all()
+    )
+
+    # ---------------------------------------------------------
+    # Build response
+    # ---------------------------------------------------------
 
     result = []
 
     for customer in customers:
-        booking_count = db.query(
-            func.count(Booking.id)
-        ).filter(
-            Booking.customer_id == customer.id
-        ).scalar() or 0
-
-        total_spent = db.query(
-            func.coalesce(func.sum(Booking.amount), 0)
-        ).filter(
-            Booking.customer_id == customer.id,
-            Booking.status == "COMPLETED",
-        ).scalar() or 0
-
         result.append(
             {
                 "id": customer.id,
@@ -55,12 +117,21 @@ def get_customers(
                 "email": customer.email,
                 "phone": customer.phone,
                 "city": customer.city,
-                "booking_count": booking_count,
+
+                "booking_count": int(
+                    customer.booking_count or 0
+                ),
+
                 "total_spent": round(
-                    float(total_spent),
+                    float(
+                        customer.total_spent or 0
+                    ),
                     2,
                 ),
-                "created_at": customer.created_at.isoformat(),
+
+                "created_at": (
+                    customer.created_at.isoformat()
+                ),
             }
         )
 
